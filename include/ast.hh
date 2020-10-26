@@ -93,7 +93,9 @@ class Visitor;
 class ASTNode
 {
 public:
-    ASTNode(Token *t) : tok(t) {};
+    ASTNode(Token *t) : tok(t) {
+        left = right = parent = nullptr;
+    };
     virtual void accept(Visitor *v) = 0;
     virtual void print() = 0;
     ASTNode *get_left() { return left; };
@@ -103,6 +105,7 @@ public:
     ASTNode *get_parent() { return parent; };
     void set_parent(ASTNode *n) { parent = n; };
     Token *retrieve_token() { return tok; };
+    void set_token(Token *t) { tok = t; };
 
 private:
     Token *tok;
@@ -110,7 +113,7 @@ private:
 };
 
 std::string get_type(int name);
-void token_value(Token *t) { std::visit([](auto &&arg) { std::cout << arg; }, t->val); }
+void token_value(Token *t);
 void build_tree(ASTNode *root, ASTNode *node);
 
 class EXPRNode;
@@ -122,7 +125,7 @@ class IFNode;
 class WHILENode;
 class FORNode;
 
-void *build_expr(ASTNode *root, Token *tok);
+void build_expr(ASTNode *root, Token *tok);
 IFNode *build_if(ASTNode *root, ASTNode *node);
 ASSIGNNode *build_assign(ASTNode *root, ASTNode *node);
 ConditionNode *build_condition(ASTNode *root, ASTNode *node);
@@ -150,25 +153,24 @@ public:
     void accept(Visitor *visit) override { visit->walk(this); };
     void traverse(ASTNode *root) {
         if (root != nullptr) {
-            token_value(root->retrieve_token());
             traverse(root->get_left());
+            token_value(root->retrieve_token());
             traverse(root->get_right());
         }
     };
     void print() override
     {
         std::cout << "Expression: ";
-        traverse(root);
+        traverse(this);
     };
-
-private:
-    ASTNode *root;
 };
 
 class ConditionNode : public ASTNode
 {
 public:
-    // ConditionNode(Token *tok1, Token *cond_, Token *tok2) : ASTNode(CONDITION), left_var(tok1), cond(cond_), right_var(tok2) {};
+    ConditionNode(Token *tok) : ASTNode(tok) {
+        left_var = right_var = nullptr;
+    };
     void accept(Visitor *visit) override { visit->walk(this); };
     void print() override
     {
@@ -234,7 +236,7 @@ public:
     };
     void print() override{
         std::cout << "Body: ";
-        traverse(node);
+        traverse(this);
     };
 private:
     ASTNode *node;

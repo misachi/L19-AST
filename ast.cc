@@ -1,12 +1,13 @@
 #include "include/ast.hh"
 
 #include <iostream>
+#include <variant>
 
 static int isnumber(Token *tok)
 {
     return tok->type == NUMBER || tok->type == FLOAT || tok->type == INT || tok->type == DOUBLE;
 }
-
+void token_value(Token *t) { std::visit([](auto &&arg) { std::cout << arg; }, t->val); }
 void WalkNode::walk(ASSIGNNode *node)
 {
 #if DEBUG
@@ -208,7 +209,7 @@ void build(ASTNode *Troot, ASTNode *temp, ASTNode *expr) {
     }
 }
 
-void *build_expr(ASTNode *Troot, Token *tok)
+void build_expr(ASTNode *Troot, Token *tok)
 {
     EXPRNode *expr = new EXPRNode(tok);
     ASTNode *root = Troot;
@@ -227,37 +228,23 @@ void *build_expr(ASTNode *Troot, Token *tok)
         }
     }
 
-    auto parent = temp->get_parent();
-    if (temp != nullptr) {
+    if (temp == nullptr) {
         root = expr;
     } else if (temp->get_left() == nullptr) {
-        if (isnumber(temp->get_parent()->retrieve_token())) {
-            if (parent != nullptr)
-                parent->set_left(expr);
-            temp->set_parent(expr);
-            expr->set_left(temp);
-            expr->set_right(temp->get_right());
-        } else {
-            expr->set_parent(temp);
-            temp->set_left(expr);
+        if (isnumber(temp->retrieve_token())) {
+            auto val = temp->retrieve_token();
+            temp->set_token(expr->retrieve_token());
+            expr->set_token(val);
         }
+        expr->set_parent(temp);
+        temp->set_left(expr);
     } else {
-        if (isnumber(temp->get_parent()->retrieve_token())) {
-            if (parent != nullptr)
-                parent->set_right(expr);
-            temp->set_parent(expr);
-            expr->set_right(temp);
-            expr->set_left(temp->get_left());
-        } else {
-            expr->set_parent(temp);
-            temp->set_right(expr);
+        if (isnumber(temp->retrieve_token())) {
+            auto val = temp->retrieve_token();
+            temp->set_token(expr->retrieve_token());
+            expr->set_token(val);
         }
+        expr->set_parent(temp);
+        temp->set_right(expr);
     }
-}
-
-
-int main()
-{
-    // Token *tok1, *tok2, *tok3, *tok4, *tok5;
-    // tok1 = new Token()
 }
