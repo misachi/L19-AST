@@ -9,7 +9,7 @@
 
 struct Token
 {
-    Token(int typ) : type(typ) {};
+    Token(int typ) : type(typ){};
     int type;
     std::variant<int, char, std::string, float, double> val;
 };
@@ -68,6 +68,8 @@ enum
     LSHIFT,
     RSHIFT,
     CONDITION,
+    EXPRESSION,
+    BODY,
     // Types
     NUMBER,
     FLOAT,
@@ -93,28 +95,33 @@ class Visitor;
 class ASTNode
 {
 public:
-    ASTNode(Token *t) : tok(t) {
+    ASTNode(int typ) : type(typ)
+    {
         left = right = parent = nullptr;
     };
-    virtual void accept(Visitor *v) = 0;
-    virtual void print() = 0;
+    ASTNode(const ASTNode &);
+    virtual ~ASTNode();
+    ASTNode &operator=(const ASTNode &);
+    virtual void accept(Visitor *v){};
+    virtual void print(){};
     ASTNode *get_left() { return left; };
     void set_left(ASTNode *n) { left = n; };
     ASTNode *get_right() { return right; };
     void set_right(ASTNode *n) { right = n; };
     ASTNode *get_parent() { return parent; };
     void set_parent(ASTNode *n) { parent = n; };
-    Token *retrieve_token() { return tok; };
-    void set_token(Token *t) { tok = t; };
+    int get_type() { return type; };
+    void set_type(int typ) { type = typ; };
 
 private:
-    Token *tok;
+    int type;
     ASTNode *left, *right, *parent;
 };
 
-std::string get_type(int name);
+std::string get_string_type(int name);
 void token_value(Token *t);
-void build_tree(ASTNode *root, ASTNode *node);
+void build_ast(ASTNode *root, ASTNode *node);
+void walk_tree(ASTNode *tree);
 
 class EXPRNode;
 class ConditionNode;
@@ -125,17 +132,19 @@ class IFNode;
 class WHILENode;
 class FORNode;
 
-void build_expr(ASTNode *root, Token *tok);
-IFNode *build_if(ASTNode *root, ASTNode *node);
-ASSIGNNode *build_assign(ASTNode *root, ASTNode *node);
-ConditionNode *build_condition(ASTNode *root, ASTNode *node);
-RETURNNode *build_return(ASTNode *root, ASTNode *node);
-WHILENode *build_while(ASTNode *root, ASTNode *node);
-FORNode *build_for(ASTNode *root, ASTNode *node);
+void build_expr(EXPRNode *root, Token *tok);
+void build_if(IFNode *root, ConditionNode *node, BodyNode *body);
+void build_assign(ASSIGNNode *root, Token *name, EXPRNode *expr);
+void build_condition(ConditionNode *root, Token *tok, EXPRNode *lhs, EXPRNode *rhs);
+void build_return(RETURNNode *root, ASTNode *node);
+void build_while(WHILENode *root, ConditionNode *node, BodyNode *body);
+void build_for(FORNode *root, ASSIGNNode *assign, ConditionNode *node, BodyNode *body);
+void build_body(BodyNode *root, ASTNode *node);
 
 class Visitor
 {
 public:
+    virtual ~Visitor(){};
     virtual void walk(EXPRNode *node) = 0;
     virtual void walk(ConditionNode *node) = 0;
     virtual void walk(ASSIGNNode *node) = 0;
@@ -149,34 +158,65 @@ public:
 class EXPRNode : public ASTNode
 {
 public:
-    EXPRNode(Token *tok) : ASTNode(tok) {};
+    EXPRNode() : ASTNode(EXPRESSION)
+    {
+        left_node = right_node = parent_node = nullptr;
+    };
+    EXPRNode(Token *t) : ASTNode(EXPRESSION), tok(t)
+    {
+        left_node = right_node = parent_node = nullptr;
+    };
+    virtual ~EXPRNode();
     void accept(Visitor *visit) override { visit->walk(this); };
-    void traverse(ASTNode *root) {
-        if (root != nullptr) {
-            traverse(root->get_left());
-            token_value(root->retrieve_token());
-            traverse(root->get_right());
+    void set_token(Token *t) { tok = t; };
+    Token *get_token() { return tok; };
+    EXPRNode *get_left_node() { return left_node; };
+    void set_left_node(EXPRNode *n) { left_node = n; };
+    EXPRNode *get_right_node() { return right_node; };
+    void set_right_node(EXPRNode *n) { right_node = n; };
+    EXPRNode *get_parent_node() { return parent_node; };
+    void set_parent_node(EXPRNode *n) { parent_node = n; };
+    void traverse(EXPRNode *root)
+    {
+        if (root != nullptr)
+        {
+            traverse(root->left_node);
+            token_value(root->tok);
+            std::cout << " ";
+            traverse(root->right_node);
         }
     };
     void print() override
     {
-        std::cout << "Expression: ";
         traverse(this);
     };
+
+private:
+    Token *tok;
+    EXPRNode *left_node, *right_node, *parent_node;
 };
 
 class ConditionNode : public ASTNode
 {
 public:
-    ConditionNode(Token *tok) : ASTNode(tok) {
+    ConditionNode() : ASTNode(CONDITION)
+    {
         left_var = right_var = nullptr;
     };
+    ConditionNode(Token *t) : ASTNode(CONDITION), cond(t)
+    {
+        left_var = right_var = nullptr;
+    };
+    ConditionNode(Token *t, EXPRNode *lhs, EXPRNode *rhs) : ASTNode(CONDITION), cond(t), left_var(lhs), right_var(rhs) {}
+    virtual ~ConditionNode(){};
+    void set_cond(Token *c) { cond = c; };
+    void set_lhs_expr(EXPRNode *expr) { left_var = expr; };
+    void set_rhs_expr(EXPRNode *expr) { right_var = expr; };
     void accept(Visitor *visit) override { visit->walk(this); };
     void print() override
     {
-        std::cout << "ConditionExpression: ";
         left_var->print();
-        std::cout << " " << get_type(cond->type) << " ";
+        std::cout << " " << get_string_type(cond->type) << " ";
         right_var->print();
         std::cout << "\n";
     };
@@ -189,55 +229,73 @@ private:
 class ASSIGNNode : public ASTNode
 {
 public:
-    // ASSIGNNode(Token *tok, Token *val_) : name(tok), val(val_) {};
+    ASSIGNNode() : ASTNode(ASSIGN)
+    {
+        expr = nullptr;
+    };
+    ASSIGNNode(Token *tok) : ASTNode(ASSIGN), name(tok)
+    {
+        expr = nullptr;
+    };
+    ASSIGNNode(Token *tok, EXPRNode *val) : ASTNode(ASSIGN), name(tok), expr(val){};
+    virtual ~ASSIGNNode()
+    {
+        if (expr != nullptr)
+            delete expr;
+    };
+    void set_name(Token *tok) { name = tok; };
+    void set_expr(EXPRNode *node) { expr = node; };
     void accept(Visitor *visit) override { visit->walk(this); };
     void print() override
     {
-        std::cout << "Assignment: ";
-        token_value(token_typ);
-        std::cout << " ";
         token_value(name);
-        std::cout << " ";
-        val->print();
+        std::cout << " = ";
+        expr->print();
         std::cout << "\n";
     };
 
 private:
-    Token *token_typ, *name;
-    EXPRNode *val;
+    Token *name;
+    EXPRNode *expr;
 };
 
 class RETURNNode : public ASTNode
 {
 public:
-    // RETURNNode(Token *tok) : val(tok) {};
+    RETURNNode() : ASTNode(RETURN) { expr = nullptr; };
+    RETURNNode(EXPRNode *val) : ASTNode(RETURN), expr(val){};
+    virtual ~RETURNNode(){};
     void accept(Visitor *visit) override { visit->walk(this); };
+
     void print() override
     {
-        std::cout << "Return: ";
-        val->print();
+        expr->print();
         std::cout << "\n";
     };
 
 private:
-    EXPRNode *val;
+    EXPRNode *expr;
 };
 
 class BodyNode : public ASTNode
 {
 public:
+    BodyNode() : ASTNode(BODY){};
     void accept(Visitor *visit) override { visit->walk(this); };
-    void traverse(ASTNode *n) {
-        if (n!=nullptr) {
+    void traverse(ASTNode *n)
+    {
+        if (n != nullptr)
+        {
             n->print();
             traverse(n->get_left());
             traverse(n->get_right());
         }
     };
-    void print() override{
-        std::cout << "Body: ";
+    void print() override
+    {
         traverse(this);
     };
+
 private:
     ASTNode *node;
 };
@@ -245,9 +303,17 @@ private:
 class IFNode : public ASTNode
 {
 public:
-    // IFNode(ConditionNode *condition, BodyNode *bdy) : cond(condition), body(bdy) {};
+    IFNode() : ASTNode(IF){};
+    IFNode(ConditionNode *condition, BodyNode *bdy) : ASTNode(IF), cond(condition), body(bdy){};
+    void set_cond(ConditionNode *c) { cond = c; };
+    void set_body(BodyNode *b) { body = b; };
     void accept(Visitor *visit) override { visit->walk(this); };
-    void print() override { cond->print(); body->print(); };
+    void print() override
+    {
+        cond->print();
+        body->print();
+    };
+
 private:
     ConditionNode *cond;
     BodyNode *body;
@@ -256,9 +322,17 @@ private:
 class WHILENode : public ASTNode
 {
 public:
-    // WHILENode(ConditionNode *condition, BodyNode *bdy) : cond(condition), body(bdy) {};
+    WHILENode() : ASTNode(IF){};
+    WHILENode(ConditionNode *condition, BodyNode *bdy) : ASTNode(IF), cond(condition), body(bdy){};
+    void set_cond(ConditionNode *c) { cond = c; };
+    void set_body(BodyNode *b) { body = b; };
     void accept(Visitor *visit) override { visit->walk(this); };
-    void print() override { cond->print(); body->print(); };
+    void print() override
+    {
+        cond->print();
+        body->print();
+    };
+
 private:
     ConditionNode *cond;
     BodyNode *body;
@@ -267,7 +341,15 @@ private:
 class FORNode : public ASTNode
 {
 public:
-    // FORNode(ASSIGNNode *ass, ConditionNode *condition, BodyNode *bdy) : assign(ass), cond(condition), body(bdy) {};
+    FORNode() : ASTNode(IF){
+        assign = nullptr;
+        cond = nullptr;
+        body = nullptr;
+    };
+    FORNode(ASSIGNNode *ass, ConditionNode *condition, BodyNode *bdy) : ASTNode(IF), assign(ass), cond(condition), body(bdy){};
+    void set_cond(ConditionNode *c) { cond = c; };
+    void set_body(BodyNode *b) { body = b; };
+    void set_assign(ASSIGNNode *ass) { assign = ass; };
     void accept(Visitor *visit) override { visit->walk(this); };
     void print() override
     {
@@ -282,22 +364,10 @@ private:
     BodyNode *body;
 };
 
-class BuildNode : public Visitor
-{
-public:
-    void walk(ASSIGNNode *node) override;
-    void walk(BodyNode *node) override;
-    void walk(ConditionNode *node) override;
-    void walk(FORNode *node) override;
-    void walk(WHILENode *node) override;
-    void walk(IFNode *node) override;
-    void walk(RETURNNode *node) override;
-    void walk(EXPRNode *node) override;
-};
-
 class WalkNode : public Visitor
 {
 public:
+    virtual ~WalkNode(){};
     void walk(ASSIGNNode *node) override;
     void walk(BodyNode *node) override;
     void walk(ConditionNode *node) override;

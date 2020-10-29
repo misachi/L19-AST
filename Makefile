@@ -18,3 +18,6 @@ run: ${OBJ}
 
 clean:
 	rm *.out *.o
+
+memcheck:
+	valgrind --tool=memcheck --leak-check=yes --track-origins=yes ./a.out
