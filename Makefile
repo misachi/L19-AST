@@ -1,6 +1,7 @@
 CC := g++
 CFLAGS := \
 	-Iinclude \
+	-Werror \
 	-Wpedantic \
 	-g -Wall \
 	-std=c++17
@@ -20,4 +21,4 @@ clean:
 	rm *.out *.o
 
 memcheck:
-	valgrind --tool=memcheck --leak-check=yes --track-origins=yes ./a.out
+	valgrind --tool=memcheck --leak-check=yes --track-origins=yes --show-leak-kinds=all -s ./a.out

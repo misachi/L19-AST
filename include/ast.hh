@@ -264,7 +264,7 @@ class RETURNNode : public ASTNode
 public:
     RETURNNode() : ASTNode(RETURN) { expr = nullptr; };
     RETURNNode(EXPRNode *val) : ASTNode(RETURN), expr(val){};
-    virtual ~RETURNNode(){};
+    virtual ~RETURNNode(){ if (expr != nullptr) delete expr; };
     void accept(Visitor *visit) override { visit->walk(this); };
 
     void print() override
@@ -280,7 +280,8 @@ private:
 class BodyNode : public ASTNode
 {
 public:
-    BodyNode() : ASTNode(BODY){};
+    BodyNode() : ASTNode(BODY){ node = nullptr; };
+    BodyNode(ASTNode *nde) : ASTNode(BODY), node(nde) {};
     void accept(Visitor *visit) override { visit->walk(this); };
     void traverse(ASTNode *n)
     {

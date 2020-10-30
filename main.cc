@@ -24,8 +24,8 @@ int main()
     {
         build_expr(root, &list.at(i));
     }
-    EXPRNode tmp{&tok5};
-    RETURNNode *node{new RETURNNode{&tmp}};
+    EXPRNode *tmp{new EXPRNode{&tok5}};
+    RETURNNode *node{new RETURNNode{tmp}};
     build_ast(Troot, node);
 
     Token tok10{ID};
